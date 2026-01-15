@@ -4,17 +4,19 @@ services:
   kokoro:
     build:
       context: ./inference/kokoro
-    networks: [agent_network]
+    networks:
+      - agent_network
     restart: unless-stopped
 
   livekit:
     image: livekit/livekit-server:latest
     command: --dev --bind "0.0.0.0"
     ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "7882:7882/udp"
-    networks: [agent_network]
+      - "7880:7880"        # signaling (HTTP/WS)
+      - "7881:7881"        # RTC over TCP
+      - "7882:7882/udp"    # RTC over UDP (necesario para WebRTC)
+    networks:
+      - agent_network
     restart: unless-stopped
 
   whisper:
@@ -26,7 +28,8 @@ services:
       VOXBOX_HF_REPO_ID: ${VOXBOX_HF_REPO_ID:-Systran/faster-whisper-small}
       VOXBOX_DEVICE: ${VOXBOX_DEVICE:-cpu}
       DATA_DIR: /data
-    networks: [agent_network]
+    networks:
+      - agent_network
     restart: unless-stopped
 
   llama_cpp:
@@ -47,7 +50,8 @@ services:
     environment:
       XDG_CACHE_HOME: /models
       HF_HOME: /models
-    networks: [agent_network]
+    networks:
+      - agent_network
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:11434/v1/models > /dev/null"]
       interval: 10s
@@ -83,15 +87,20 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
-    networks: [agent_network]
+    networks:
+      - agent_network
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
+      args:
+        # IMPORTANTÍSIMO: esto entra al build de Next.js (evita que se hornee localhost)
+        NEXT_PUBLIC_LIVEKIT_URL: "ws://72.62.82.20:7880"
     ports:
       - "3000:3000"
     environment:
+      # También lo dejamos en runtime (no hace daño), pero lo crítico es el build arg
       NEXT_PUBLIC_LIVEKIT_URL: "ws://72.62.82.20:7880"
       LIVEKIT_URL: "ws://livekit:7880"
       LIVEKIT_API_KEY: "devkey"
@@ -99,7 +108,8 @@ services:
     depends_on:
       livekit:
         condition: service_started
-    networks: [agent_network]
+    networks:
+      - agent_network
     restart: unless-stopped
 
 volumes:
