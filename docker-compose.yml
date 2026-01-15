@@ -106,7 +106,7 @@ services:
     environment:
       # IMPORTANTE: en VPS NO uses localhost.
       # Default puesto a tu IP del VPS; también puedes sobreescribirlo con .env:
-      # NEXT_PUBLIC_LIVEKIT_URL=ws://72.62.82.20:7880
+      NEXT_PUBLIC_LIVEKIT_URL=ws://72.62.82.20:7880
       - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://72.62.82.20:7880}
       - LIVEKIT_URL=ws://livekit:7880
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
