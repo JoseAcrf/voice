@@ -9,13 +9,14 @@ services:
       - agent_network
     restart: unless-stopped
 
-  # LiveKit - lo mínimo para que el navegador se conecte al VPS
+  # LiveKit - expone señalización + RTC (incluye UDP para WebRTC)
   livekit:
     image: livekit/livekit-server:latest
     command: --dev --bind "0.0.0.0"
     ports:
-      - "7880:7880"
-      - "7881:7881"
+      - "7880:7880"        # HTTP/WS signaling
+      - "7881:7881"        # RTC over TCP
+      - "7882:7882/udp"    # RTC over UDP (muy importante)
     networks:
       - agent_network
     restart: unless-stopped
@@ -96,16 +97,17 @@ services:
       - agent_network
     restart: unless-stopped
 
-  # Frontend
+  # Frontend (Next.js)
   frontend:
     build:
       context: ./frontend
     ports:
       - "3000:3000"
     environment:
-      # IMPORTANTE:
-      # Cambia TU_IP_PUBLICA por la IP del VPS o usa un dominio (ideal con TLS y wss://)
-      - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://TU_IP_PUBLICA:7880}
+      # IMPORTANTE: en VPS NO uses localhost.
+      # Default puesto a tu IP del VPS; también puedes sobreescribirlo con .env:
+      # NEXT_PUBLIC_LIVEKIT_URL=ws://72.62.82.20:7880
+      - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://72.62.82.20:7880}
       - LIVEKIT_URL=ws://livekit:7880
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
