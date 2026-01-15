@@ -1,21 +1,26 @@
+version: "3.9"
+
 services:
+  # TTS (Kokoro) - interno (no expuesto al público)
   kokoro:
     build:
       context: ./inference/kokoro
-    ports:
-      - "8880:8880"
     networks:
       - agent_network
+    restart: unless-stopped
 
+  # LiveKit - lo mínimo para que el navegador se conecte al VPS
   livekit:
     image: livekit/livekit-server:latest
+    command: --dev --bind "0.0.0.0"
     ports:
       - "7880:7880"
       - "7881:7881"
-    command: --dev --bind "0.0.0.0"
     networks:
       - agent_network
+    restart: unless-stopped
 
+  # STT (Whisper/VoxBox) - interno (no expuesto al público)
   whisper:
     build:
       context: ./inference/whisper
@@ -25,11 +30,12 @@ services:
       - VOXBOX_HF_REPO_ID=${VOXBOX_HF_REPO_ID:-Systran/faster-whisper-small}
       - VOXBOX_DEVICE=${VOXBOX_DEVICE:-cpu}
       - DATA_DIR=/data
-    ports:
-      - "11435:80"
     networks:
       - agent_network
+    restart: unless-stopped
 
+  # LLM (llama.cpp server) - interno (no expuesto al público)
+  # Ajustado para VPS de 8GB: ctx más bajo para reducir RAM.
   llama_cpp:
     image: ghcr.io/ggml-org/llama.cpp:server
     command:
@@ -42,9 +48,7 @@ services:
       - --alias
       - "${LLAMA_MODEL_ALIAS:-qwen3-4b}"
       - --ctx-size
-      - "${LLAMA_CTX_SIZE:-16384}"
-    ports:
-      - "${LLAMA_HOST_PORT:-11436}:11434"
+      - "${LLAMA_CTX_SIZE:-4096}"
     volumes:
       - ./inference/llama/models:/models
     environment:
@@ -57,7 +61,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
+    restart: unless-stopped
 
+  # Agente LiveKit
   livekit_agent:
     build:
       context: ./livekit_agent
@@ -65,7 +71,7 @@ services:
       - .env
     environment:
       - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit:7880}
-      - LIVEKIT_HOST=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_HOST=ws://livekit:7880
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
       - LIVEKIT_AGENT_PORT=${LIVEKIT_AGENT_PORT:-7880}
@@ -88,22 +94,27 @@ services:
       start_period: 10s
     networks:
       - agent_network
+    restart: unless-stopped
 
+  # Frontend
   frontend:
     build:
       context: ./frontend
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+      # IMPORTANTE:
+      # Cambia TU_IP_PUBLICA por la IP del VPS o usa un dominio (ideal con TLS y wss://)
+      - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-ws://TU_IP_PUBLICA:7880}
       - LIVEKIT_URL=ws://livekit:7880
-      - LIVEKIT_API_KEY=devkey
-      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
     depends_on:
       livekit:
         condition: service_started
     networks:
       - agent_network
+    restart: unless-stopped
 
 volumes:
   whisper-data:
